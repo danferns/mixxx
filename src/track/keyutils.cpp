@@ -698,3 +698,62 @@ int KeyUtils::keyToCircleOfFifthsOrder(mixxx::track::io::key::ChromaticKey key,
         return s_sortKeysCircleOfFifthsLancelot[static_cast<int>(key)];
     }
 }
+
+// returns the pitch difference between two tracks, when they are played at the
+// same tempo. Assumes all inputs are valid.
+double KeyUtils::trackSyncPitchDifference(
+        mixxx::track::io::key::ChromaticKey key1,
+        double bpm1,
+        mixxx::track::io::key::ChromaticKey key2,
+        double bpm2) {
+    // convert minor keys to their relative majors
+    // we are interested in the notes used, not the mode
+    key1 = minorToRelativeMajor(key1);
+    key2 = minorToRelativeMajor(key2);
+
+    // calculate the pitch delta for each track when stretched to a tempo of 100BPM
+    const double delta1 = powerOf2ToSemitoneChange(bpm1 / 100);
+    const double delta2 = powerOf2ToSemitoneChange(bpm2 / 100);
+
+    // get the resulting key for each track at 100BPM
+    const double resPitch1 = normalizePitch(keyToNumericValue(key1) + delta1);
+    const double resPitch2 = normalizePitch(keyToNumericValue(key2) + delta2);
+
+    // return the pitch difference when both tracks are played at the same tempo
+    return normalizePitch(resPitch1 - resPitch2);
+}
+
+// Calculates Similarity (0 to 1, -1 if invalid) between two tracks based on their key and BPM.
+double KeyUtils::trackSimilarity(mixxx::track::io::key::ChromaticKey key1,
+        double bpm1,
+        mixxx::track::io::key::ChromaticKey key2,
+        double bpm2) {
+    if (key1 == mixxx::track::io::key::INVALID || key2 == mixxx::track::io::key::INVALID) {
+        return -1.0;
+    }
+
+    // relative pitch difference between tracks, when played at same tempo
+    const double pitchDiff = trackSyncPitchDifference(key1, bpm1, key2, bpm2);
+
+    const int roundedPitchDiff = normalizePitch(round(pitchDiff));
+    double cents = abs(roundedPitchDiff - pitchDiff);
+    if (cents > 11) {
+        cents = 12 - cents;
+    }
+
+    // Open Key number also conveniently gives us the index in the Keywheel
+    // Keys use 1-based indexing (0 is INVALID)
+    const int okNum = keyToOpenKeyNumber(keyFromNumericValue(roundedPitchDiff + 1));
+    // rank: distance between tracks on the Circle of Fifths,
+    // when played at the same tempo.
+    const int rank = std::min(okNum, 12 - okNum);
+
+    // normalize rank between 0-1 by dividing by 7 (no. of rank values, including 0)
+    // invert so 1.0 means most compatible
+    const double normRank = (1 - rank / 7);
+    // this 1-16x^4 curve forgives the effect of lower detune values on the similarity
+    const double normCents = (1 - 16 * pow(cents, 4)); // 0-1
+
+    // calculate final similarity and return it
+    return normRank * normCents;
+}

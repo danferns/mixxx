@@ -56,6 +56,12 @@ class KeyUtils {
             tonic + (major ? 1 : 13));
     }
 
+    // Converts a minor key to its relative major. This will change the tonic.
+    static inline mixxx::track::io::key::ChromaticKey minorToRelativeMajor(
+            mixxx::track::io::key::ChromaticKey key) {
+        return openKeyNumberToKey(keyToOpenKeyNumber(key), true);
+    }
+
     static QString keyToString(mixxx::track::io::key::ChromaticKey key,
                                KeyNotation notation = KeyNotation::Custom);
 
@@ -172,6 +178,22 @@ class KeyUtils {
 
     static int keyToCircleOfFifthsOrder(mixxx::track::io::key::ChromaticKey key,
                                         KeyNotation notation);
+
+    // Ensure pitch is in the [0-12) range
+    static inline double normalizePitch(double pitch) {
+        return fmod((pitch + 12), 12.0);
+    }
+
+    static double trackSyncPitchDifference(
+            mixxx::track::io::key::ChromaticKey key1,
+            double bpm1,
+            mixxx::track::io::key::ChromaticKey key2,
+            double bpm2);
+
+    static double trackSimilarity(mixxx::track::io::key::ChromaticKey key1,
+            double bpm1,
+            mixxx::track::io::key::ChromaticKey key2,
+            double bpm2);
 
   private:
     static QMutex s_notationMutex;
